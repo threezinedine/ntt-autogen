@@ -13,6 +13,7 @@ from .utils import (
 def GenerateTemplate(
     template: Template,
     baseDir: str,
+    tempFolder: str,
     **kwargs: Any,
 ) -> tuple[str, list[str]]:
     """
@@ -26,6 +27,9 @@ def GenerateTemplate(
     baseDir: str
         The base directory for resolving relative paths. Defaults to None. If None,
         the current working directory is used.
+
+    tempFolder: str,
+        The temporary folder to store intermediate files.
 
     Keyword Arguments
     -----------------
@@ -71,13 +75,13 @@ def GenerateTemplate(
 
     isAnyDependencyModified = False
     for depFile in allDependencies:
-        if IsFileModified(depFile, baseDir):
+        if IsFileModified(depFile, baseDir, tempFolder):
             isAnyDependencyModified = True
             break
 
     if (
         not isAnyDependencyModified
-        and not IsFileModified(template.file, baseDir)
+        and not IsFileModified(template.file, baseDir, tempFolder)
         and all(os.path.exists(fullOutputPath) for fullOutputPath in fullOutputPaths)
     ):
         logger.debug(
@@ -104,6 +108,6 @@ def GenerateTemplate(
 
         logger.info(f'Generated file "{outputFile}" from template "{template.file}".')
 
-    UpdateFileStamp(template.file, baseDir)
+    UpdateFileStamp(template.file, baseDir, tempFolder)
 
     return renderedContent, allDependencies

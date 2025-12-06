@@ -191,6 +191,7 @@ def _ConvertRawCCommentToPythonComment(pyObject: PyObject) -> str:
 def GenerateBindings(
     binding: Binding,
     baseDir: str,
+    tempFolder: str,
     testContent: str | None = None,
     systemData: dict[str, Any] | None = None,
 ) -> tuple[str, list[str]]:
@@ -243,13 +244,13 @@ def GenerateBindings(
         hasModified = False
 
         for depFile in dependenciesFiles:
-            if IsFileModified(depFile, baseDir):
+            if IsFileModified(depFile, baseDir, tempFolder):
                 hasModified = True
                 break
 
         if (
             not hasModified
-            and not IsFileModified(binding.template, baseDir)
+            and not IsFileModified(binding.template, baseDir, tempFolder)
             and os.path.exists(outputPath)
         ):
             logger.debug(

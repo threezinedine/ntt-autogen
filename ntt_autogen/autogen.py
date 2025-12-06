@@ -1,6 +1,7 @@
 SETTING_FILE = "autogen-settings.json"
 import os
 import json
+from typing import Any
 
 from .binding import GenerateBindings
 from .template_gen import GenerateTemplate
@@ -31,9 +32,10 @@ class Autogen:
         self,
         tempFolder: str = "temp",
         baseDir: str | None = None,
+        **kwargs: Any,
     ) -> None:
         self._baseDir = baseDir if baseDir else os.getcwd()
-        self._tempFolder = os.path.join(self._baseDir, tempFolder)
+        self._tempFolder = tempFolder
 
         # create setting files if not exist
         settingFile = os.path.join(self._baseDir, SETTING_FILE)
@@ -52,14 +54,24 @@ class Autogen:
             settings = from_dict(data_class=Settings, data=json.load(f))
 
         for template in settings.templates:
-            _, deps = GenerateTemplate(template, self._baseDir)
+            _, deps = GenerateTemplate(
+                template,
+                self._baseDir,
+                tempFolder=self._tempFolder,
+                **kwargs,
+            )
             for dep in deps:
                 dependencies.add(dep)
 
         for binding in settings.bindings:
-            _, deps = GenerateBindings(binding, self._baseDir)
+            _, deps = GenerateBindings(
+                binding,
+                self._baseDir,
+                tempFolder=self._tempFolder,
+                systemData=kwargs,
+            )
             for dep in deps:
                 dependencies.add(dep)
 
         for dependency in dependencies:
-            UpdateFileStamp(dependency, self._baseDir)
+            UpdateFileStamp(dependency, self._baseDir, self._tempFolder)

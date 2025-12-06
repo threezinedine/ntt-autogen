@@ -5,6 +5,7 @@ import shutil
 def GetStampFilePath(
     filePath: str,
     baseDir: str,
+    tempFolder: str,
 ) -> str:
     """
     Get the path to the stamp file for a given file.
@@ -12,28 +13,34 @@ def GetStampFilePath(
     Args:
         filePath (str): The path to the original file (relative to the base directory).
         baseDir (str): The base directory for resolving relative paths.
+        tempFolder (str): The temporary folder to store stamp files. Defaults to "temp".
 
     Returns:
         str: The path to the corresponding stamp file.
     """
 
-    return os.path.join(baseDir, "autogen", "temp", f"{filePath}.stamp")
+    return os.path.join(baseDir, tempFolder, f"{filePath}.stamp")
 
 
-def IsFileModified(filePath: str, baseDir: str) -> bool:
+def IsFileModified(
+    filePath: str,
+    baseDir: str,
+    tempFolder: str,
+) -> bool:
     """
     Check if a file has been modified based on its cache.
 
     Args:
         filePath (str): The path to the file to check (relative to the base directory).
         baseDir (str): The base directory for resolving relative paths.
+        tempFolder (str): The temporary folder where stamp files are stored.
 
     Returns:
         bool: True if the file has been modified, False otherwise.
     """
 
     fullFilePath = os.path.join(baseDir, filePath)
-    stampFilePath = GetStampFilePath(filePath, baseDir)
+    stampFilePath = GetStampFilePath(filePath, baseDir, tempFolder)
 
     if not os.path.exists(fullFilePath):
         raise FileNotFoundError(f"File '{fullFilePath}' does not exist.")
@@ -47,23 +54,24 @@ def IsFileModified(filePath: str, baseDir: str) -> bool:
     return False
 
 
-def UpdateFileStamp(filePath: str, baseDir: str) -> None:
+def UpdateFileStamp(filePath: str, baseDir: str, tempFolder: str) -> None:
     """
     Update the stamp file for a given file to reflect its current modification time.
 
     Args:
         filePath (str): The path to the original file (relative to the base directory).
         baseDir (str): The base directory for resolving relative paths.
+        tempFolder (str): The temporary folder to store stamp files.
     """
 
-    stampFilePath = GetStampFilePath(filePath, baseDir)
+    stampFilePath = GetStampFilePath(filePath, baseDir, tempFolder)
 
     os.makedirs(os.path.dirname(stampFilePath), exist_ok=True)
     with open(stampFilePath, "w") as file:
         file.write("")
 
 
-def ClearCache(baseDir: str) -> None:
+def ClearCache(baseDir: str, tempFolder: str) -> None:
     """
     Clear all cached stamp files.
 
@@ -71,5 +79,5 @@ def ClearCache(baseDir: str) -> None:
         baseDir (str): The base directory for resolving relative paths.
     """
 
-    tempDir = os.path.join(baseDir, "autogen", "temp")
+    tempDir = os.path.join(baseDir, tempFolder)
     shutil.rmtree(tempDir, ignore_errors=True)

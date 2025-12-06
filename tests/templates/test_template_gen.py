@@ -133,3 +133,63 @@ def test_auto_generate_template_if_source_changed(fs: FakeFilesystem) -> None:
     assert (
         firstStampTime < secondStampTime
     ), "Stamp file was not updated after the template was modified."
+
+
+def test_autogen_with_dependencies(fs: FakeFilesystem) -> None:
+    os.makedirs("/project", exist_ok=True)
+
+    with open("/project/base.json.in", "w") as f:
+        f.write(
+            """
+        {
+            "base_setting": "{{ BASE_VALUE }}" 
+        }
+        """
+        )
+
+    with open("/project/depedencies.txt", "w") as f:
+        f.write("base.json.in\n")
+
+    settings = Settings(
+        templates=[
+            Template(
+                file="base.json.in",
+                dependencies=["."],
+                extensions=[".txt"],
+            )
+        ]
+    )
+
+    with open("/project/autogen-settings.json", "w") as f:
+        f.write(json.dumps(asdict(settings)))
+
+    Autogen(baseDir="/project", BASE_VALUE="base1")
+
+    assert os.path.exists(
+        "/project/temp/base.json.in.stamp"
+    ), "Stamp file was not created."
+
+    assert os.path.exists(
+        "/project/temp/depedencies.txt.stamp"
+    ), "Dependency stamp file was not created."
+
+    firstStampTime = os.path.getmtime("/project/temp/base.json.in.stamp")
+
+    time.sleep(0.1)
+    with open("/project/depedencies.txt", "w") as f:
+        f.write("base.json.in\nadditional_dependency.txt\n")
+
+    Autogen(baseDir="/project", BASE_VALUE="base1")
+
+    secondStampTime = os.path.getmtime("/project/temp/base.json.in.stamp")
+
+    assert (
+        firstStampTime < secondStampTime
+    ), "Stamp file was not updated after dependency file was modified."
+
+    with open("/project/base.json", "r") as f:
+        generated_content = f.read()
+        data = json.loads(generated_content)
+        assert (
+            data["base_setting"] == "base1"
+        ), "base_setting was not set correctly after dependency modification."

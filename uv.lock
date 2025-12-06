@@ -140,12 +140,12 @@ dependencies = [
     { name = "dacite" },
     { name = "jinja2" },
     { name = "libclang" },
-    { name = "pyfakefs" },
     { name = "types-clang" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "pyfakefs" },
     { name = "pytest" },
 ]
 
@@ -154,12 +154,14 @@ requires-dist = [
     { name = "dacite", specifier = ">=1.9.2" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "libclang", specifier = ">=18.1.1" },
-    { name = "pyfakefs", specifier = ">=5.10.2" },
     { name = "types-clang", specifier = ">=0.14.3" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.1" }]
+dev = [
+    { name = "pyfakefs", specifier = ">=5.10.2" },
+    { name = "pytest", specifier = ">=9.0.1" },
+]
 
 [[package]]
 name = "packaging"

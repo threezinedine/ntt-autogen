@@ -193,3 +193,95 @@ def test_autogen_with_dependencies(fs: FakeFilesystem) -> None:
         assert (
             data["base_setting"] == "base1"
         ), "base_setting was not set correctly after dependency modification."
+
+
+def test_templates_with_shared_dependencies(fs: FakeFilesystem) -> None:
+    os.makedirs("/project", exist_ok=True)
+
+    with open("/project/shared_dep.txt", "w") as f:
+        f.write("Shared dependency content")
+
+    template1 = Template(
+        file="template1.json.in",
+        dependencies=["."],
+        extensions=[".txt"],
+    )
+
+    template2 = Template(
+        file="template2.json.in",
+        dependencies=["."],
+        extensions=[".txt"],
+    )
+
+    with open("/project/template1.json.in", "w") as f:
+        f.write(
+            """
+        {
+            "template": "{{ TEMPLATE_NAME }}"
+        }
+        """
+        )
+
+    with open("/project/template2.json.in", "w") as f:
+        f.write(
+            """
+        {
+            "template": "{{ TEMPLATE_NAME }}"
+        }
+        """
+        )
+
+    settings = Settings(templates=[template1, template2])
+
+    with open("/project/autogen-settings.json", "w") as f:
+        f.write(json.dumps(asdict(settings)))
+
+    Autogen(baseDir="/project", TEMPLATE_NAME="Hello")
+
+    assert os.path.exists(
+        "/project/temp/template1.json.in.stamp"
+    ), "Stamp file for template1 was not created."
+
+    with open("/project/template1.json", "r") as f:
+        generated_content1 = f.read()
+        data1 = json.loads(generated_content1)
+        assert data1["template"] == "Hello", "Template1 was not generated correctly."
+
+    assert os.path.exists(
+        "/project/temp/template2.json.in.stamp"
+    ), "Stamp file for template2 was not created."
+
+    with open("/project/template2.json", "r") as f:
+        generated_content2 = f.read()
+        data2 = json.loads(generated_content2)
+        assert data2["template"] == "Hello", "Template2 was not generated correctly."
+
+    time.sleep(0.1)
+
+    Autogen(baseDir="/project", TEMPLATE_NAME="World")
+
+    with open("/project/template1.json", "r") as f:
+        generated_content1 = f.read()
+        data1 = json.loads(generated_content1)
+        assert data1["template"] == "Hello", "Template1 was not regenerated correctly."
+
+    with open("/project/template2.json", "r") as f:
+        generated_content2 = f.read()
+        data2 = json.loads(generated_content2)
+        assert data2["template"] == "Hello", "Template2 was not regenerated correctly."
+
+    time.sleep(0.1)
+    with open("/project/shared_dep.txt", "w") as f:
+        f.write("Modified shared dependency content")
+
+    Autogen(baseDir="/project", TEMPLATE_NAME="New")
+
+    with open("/project/template1.json", "r") as f:
+        generated_content1 = f.read()
+        data1 = json.loads(generated_content1)
+        assert data1["template"] == "New", "Template1 was not regenerated correctly."
+
+    with open("/project/template2.json", "r") as f:
+        generated_content2 = f.read()
+        data2 = json.loads(generated_content2)
+        assert data2["template"] == "New", "Template2 was not regenerated correctly."

@@ -1,12 +1,12 @@
 import os
 from typing import Any
 from pathlib import Path
-from analyze import Parser
-from models import Binding
+from .analyze import Parser
+from .models import Binding
 from jinja2 import Environment
 from jinja2 import FileSystemLoader
-from analyze.py_function import PyFunction, PyObject
-from utils import IsFileModified, logger, AllDependenciesFiles
+from .analyze.py_function import PyFunction, PyObject
+from .utils import IsFileModified, logger, AllDependenciesFiles
 
 parser: Parser | None = None
 
@@ -243,13 +243,13 @@ def GenerateBindings(
         hasModified = False
 
         for depFile in dependenciesFiles:
-            if IsFileModified(depFile):
+            if IsFileModified(depFile, baseDir):
                 hasModified = True
                 break
 
         if (
             not hasModified
-            and not IsFileModified(binding.template)
+            and not IsFileModified(binding.template, baseDir)
             and os.path.exists(outputPath)
         ):
             logger.debug(

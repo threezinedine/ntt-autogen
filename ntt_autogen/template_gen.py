@@ -1,8 +1,8 @@
 import os
 from typing import Any
-from models import Template
+from .models import Template
 from jinja2 import Template as JinjaTemplate
-from utils import (
+from .utils import (
     logger,
     IsFileModified,
     UpdateFileStamp,
@@ -71,13 +71,13 @@ def GenerateTemplate(
 
     isAnyDependencyModified = False
     for depFile in allDependencies:
-        if IsFileModified(depFile):
+        if IsFileModified(depFile, baseDir):
             isAnyDependencyModified = True
             break
 
     if (
         not isAnyDependencyModified
-        and not IsFileModified(template.file)
+        and not IsFileModified(template.file, baseDir)
         and all(os.path.exists(fullOutputPath) for fullOutputPath in fullOutputPaths)
     ):
         logger.debug(
@@ -104,6 +104,6 @@ def GenerateTemplate(
 
         logger.info(f'Generated file "{outputFile}" from template "{template.file}".')
 
-    UpdateFileStamp(template.file)
+    UpdateFileStamp(template.file, baseDir)
 
     return renderedContent, allDependencies

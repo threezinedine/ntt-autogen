@@ -43,12 +43,13 @@ class Autogen:
             with open(settingFile, "w", encoding="utf-8") as f:
                 json.dump(asdict(settings), f, indent=4)
 
+        assert os.path.exists(
+            settingFile
+        ), f'Setting file "{SETTING_FILE}" does not exist.'
+
         dependencies: set[str] = set()
         with open(settingFile, "r", encoding="utf-8") as f:
             settings = from_dict(data_class=Settings, data=json.load(f))
-
-        with open("settings.json") as f:
-            settings = from_dict(data_class=Settings, data=json.loads(f.read()))
 
         for template in settings.templates:
             _, deps = GenerateTemplate(template, self._baseDir)
@@ -61,4 +62,4 @@ class Autogen:
                 dependencies.add(dep)
 
         for dependency in dependencies:
-            UpdateFileStamp(dependency)
+            UpdateFileStamp(dependency, self._baseDir)

@@ -137,3 +137,15 @@ class Parser:
             if "binding" in typedef.annotations:
                 customTypes.append(typedef.name)
         return customTypes
+
+    @staticmethod
+    def SetupClangLibraryPath(libPath: str) -> None:
+        """
+        Setup the clang library path.
+
+        Arguments
+        ---------
+        libPath : str
+            The path to the clang library.
+        """
+        cindex.Config.set_library_file(libPath)

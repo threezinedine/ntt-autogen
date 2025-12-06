@@ -1,0 +1,22 @@
+[project]
+name = "ntt-autogen"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dacite>=1.9.2",
+    "jinja2>=3.1.6",
+    "libclang>=18.1.1",
+    "pyfakefs>=5.10.2",
+    "types-clang>=0.14.3",
+]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]

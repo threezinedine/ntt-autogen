@@ -1,0 +1,304 @@
+import os
+from typing import Any
+from pathlib import Path
+from analyze import Parser
+from models import Binding
+from jinja2 import Environment
+from jinja2 import FileSystemLoader
+from analyze.py_function import PyFunction, PyObject
+from utils import IsFileModified, logger, AllDependenciesFiles
+
+parser: Parser | None = None
+
+
+def _CTypeConvert(cType: str) -> str:
+    """
+    Convert a C type to a Python type.
+
+    Arguments
+    ---------
+    cType : str
+        The C type to convert.
+
+    Returns
+    -------
+    str
+        The converted Python type.
+    """
+
+    cType = cType.strip()
+
+    if cType.startswith("enum "):
+        cType = cType[5:].strip()
+
+    if cType.startswith("struct "):
+        cType = cType[7:].strip()
+
+    global parser
+    assert parser is not None, "Parser is not initialized."
+
+    if cType in [
+        "unsigned int",
+        "uint32_t",
+        "uint16_t",
+        "uint8_t",
+        "int",
+        "short",
+        "long",
+        "unsigned short",
+        "unsigned long",
+        "int32_t",
+        "int16_t",
+        "int8_t",
+        "long long",
+        "unsigned long long",
+        "int64_t",
+        "uint64_t",
+        "unsigned char",
+        "char",
+        "signed char",
+        "size_t",
+    ]:
+        return "int"
+    elif cType in ["float", "double", "long double", "float32_t", "float64_t"]:
+        return "float"
+    elif cType in [
+        "const char *",
+        "char *",
+    ]:
+        return "str"
+    elif cType == "void":
+        return "None"
+    elif cType in parser.AllCustomTypes:
+        return cType
+    elif cType == "void *":
+        return "Any"
+    else:
+        logger.warning(f'Unknown C type "{cType}", mapping to "Any".')
+        return "Any"
+
+
+def _GetFunctionParameters(function: PyFunction) -> str:
+    """
+    Get the function parameters as a string.
+
+    Arguments
+    ---------
+    function : PyFunction
+        The function to get the parameters from.
+
+    Returns
+    -------
+    str
+        The function parameters as a string.
+    """
+
+    params: list[str] = []
+    for argument in function.arguments:
+        paramType = _CTypeConvert(argument.type)
+        params.append(f"{argument.name}: {paramType}")
+
+    return ", ".join(params)
+
+
+def _ConvertRawCCommentToPythonDocstring(pyObject: PyObject) -> str:
+    """
+    Convert a raw C comment to a Python docstring.
+
+    Arguments
+    ---------
+    comment : str
+        The raw C comment.
+
+    Returns
+    -------
+    str
+        The converted Python docstring.
+    """
+
+    assert pyObject is not None, "pyObject cannot be None."
+
+    if pyObject.rawComent is None:
+        return f""
+
+    lines = pyObject.rawComent.splitlines()
+    transferredLines: list[str] = []
+
+    for line in lines:
+        lineCharsCount = len(line)
+        index = 0
+        while index < lineCharsCount and line[index] in [
+            " ",
+            "/",
+            "*",
+            "<",
+        ]:
+            index += 1
+
+        if index == lineCharsCount:
+            continue
+
+        cutLine = line[index:].strip()
+        cutLine = cutLine.replace("@", ":")
+        transferredLines.append(cutLine)
+
+    return f'\t"""\n\t' + f"\n\t".join(transferredLines) + f'\n\t"""\n'
+
+
+def _ConvertRawCCommentToPythonComment(pyObject: PyObject) -> str:
+    """
+    Convert a raw C comment to a Python comment.
+
+    Arguments
+    ---------
+    comment : str
+        The raw C comment.
+
+    Returns
+    -------
+    str
+        The converted Python comment.
+    """
+
+    assert pyObject is not None, "pyObject cannot be None."
+
+    if pyObject.rawComent is None:
+        return ""
+
+    lines = pyObject.rawComent.splitlines()
+    transferredLines: list[str] = []
+
+    for line in lines:
+        lineCharsCount = len(line)
+        index = 0
+        while index < lineCharsCount and line[index] in [
+            " ",
+            "/",
+            "*",
+            "<",
+        ]:
+            index += 1
+
+        if index == lineCharsCount:
+            continue
+
+        cutLine = line[index:].strip()
+        transferredLines.append(f"# {cutLine}")
+
+    return "\n".join(transferredLines) + "\n"
+
+
+def GenerateBindings(
+    binding: Binding,
+    baseDir: str,
+    testContent: str | None = None,
+    systemData: dict[str, Any] | None = None,
+) -> tuple[str, list[str]]:
+    """
+    The tools creating the binding files.
+
+    Arguments
+    ---------
+    binding : Binding
+        The binding configuration.
+
+    testContent: str(optional)
+        Just be used for testing
+
+    baseDir: str, optional
+        The base directory for resolving relative paths. Defaults to None. If None,
+        the current working directory is used.
+    """
+    baseDir = baseDir if baseDir else os.getcwd()
+
+    filePath = os.path.join(baseDir, binding.file)
+    templatePath = os.path.join(baseDir, binding.template)
+    outputPath = os.path.join(baseDir, binding.output)
+    dependenciesFiles: list[str] = []
+
+    if binding.dependencies is not None:
+        assert (
+            binding.extensions is not None
+        ), f'Binding "{binding.file}" has dependencies but no extensions specified.'
+
+    if testContent is None and binding.dependencies is not None:
+        assert binding.extensions is not None
+
+        dependenciesFiles = AllDependenciesFiles(
+            binding.dependencies,
+            binding.extensions,
+            baseDir,
+        )
+
+        logger.debug(
+            'All dependency files for binding "{}": \n{}'.format(
+                binding.file,
+                str(dependenciesFiles)
+                .replace(", ", ",\n\t")
+                .replace("[", "[\n\t")
+                .replace("]", "\n]"),
+            )
+        )
+
+        hasModified = False
+
+        for depFile in dependenciesFiles:
+            if IsFileModified(depFile):
+                hasModified = True
+                break
+
+        if (
+            not hasModified
+            and not IsFileModified(binding.template)
+            and os.path.exists(outputPath)
+        ):
+            logger.debug(
+                f'Binding file "{binding.file}" and its dependencies have not been modified, skipping...'
+            )
+            return ("", [])
+
+    assert os.path.exists(filePath), f'Binding file "{filePath}" does not exist.'
+    assert os.path.exists(
+        templatePath
+    ), f'Template path "{templatePath}" does not exist.'
+
+    logger.debug(f'Analysing binding file "{binding.file}"...')
+    global parser
+    parser = Parser(filePath=filePath, content=testContent)
+    parser.Parse()
+
+    logger.debug(f'Generating binding file "{binding.output}"...')
+    with open(templatePath, "r") as f:
+        templateContent = f.read()
+
+    env = Environment(loader=FileSystemLoader(baseDir))
+    template = env.from_string(templateContent)
+
+    systemData = systemData if systemData else {}
+
+    content = template.render(
+        structs=parser.Structs,
+        enums=parser.Enums,
+        typedefs=parser.Typedefs,
+        functions=parser.Functions,
+        cTypeConvert=_CTypeConvert,
+        getFunctionParameters=_GetFunctionParameters,
+        convertRawCCommentToPythonDocstring=_ConvertRawCCommentToPythonDocstring,
+        convertRawCCommentToPythonComment=_ConvertRawCCommentToPythonComment,
+        **systemData,
+    )
+
+    if testContent is None:
+        outputFolder = os.path.dirname(outputPath)
+        Path(outputFolder).mkdir(parents=True, exist_ok=True)
+
+        with open(outputPath, "w") as f:
+            f.write(content)
+
+        dependenciesFiles.append(binding.template)
+
+    logger.info(
+        f'Generated binding file "{binding.output}" from "{binding.file}" using template "{binding.template}".'
+    )
+
+    return (content, dependenciesFiles)
